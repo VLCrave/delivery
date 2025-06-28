@@ -1,0 +1,74 @@
+
+
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>VL - Personal Profile</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" rel="stylesheet" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+  <link href="css/style.css" rel="stylesheet" />
+</head>
+<body class="popup-active">
+  <!-- Popup Selamat Datang -->
+  <div id="popup-overlay"></div>
+  <div id="popup-greeting">
+    <img 
+      src="https://marketplace.canva.com/EAGKohOxSqc/1/0/1600w/canva-ilustrasi-ucapan-selamat-datang-siswa-baru-instagram-post-Su3Enh0LQb8.jpg" 
+      alt="Selamat Datang" 
+      style="max-width: 100%; width: 340px; height: auto; border-radius: 12px; margin-bottom: 0.8rem;"
+    />
+    <button id="close-popup">Masuk</button>
+  </div>
+
+  <!-- Header -->
+  <header class="produk-header">
+    <input id="search-input" type="text" placeholder="Cari produk..." oninput="filterProduk()" />
+    <select id="filter-kategori" onchange="filterByKategori()">
+      <option value="all">Semua</option>
+      <option value="open">Toko Buka</option>
+      <option value="makanan">Makanan</option>
+      <option value="minuman">Minuman</option>
+    </select>
+  </header>
+
+  <!-- Kontainer Konten Utama -->
+  <div id="page-container"></div>
+
+  <!-- Form Tambah Alamat (Hidden by Default) -->
+  <div id="form-alamat" style="display: none; padding: 1rem;">
+    <form id="alamat-form">
+      <input type="text" id="nama" placeholder="Nama Lengkap" required />
+      <input type="text" id="wa" placeholder="Nomor WhatsApp" required />
+      <textarea id="alamat" placeholder="Alamat Lengkap" required></textarea>
+      <textarea id="catatan" placeholder="Catatan (Opsional)"></textarea>
+      <button type="submit">Simpan Alamat</button>
+    </form>
+  </div>
+
+  <!-- Footer Navigasi -->
+  <footer class="footer-bottom-nav">
+    <a onclick="loadContent('productlist')"><i class="fas fa-home"></i> Beranda</a>
+    <a onclick="loadContent('checkout')" style="position: relative;">
+      <i class="fas fa-shopping-cart"></i>
+      Keranjang
+      <span class="cart-badge">0</span>
+    </a>
+    <a onclick="loadContent('alamat')"><i class="fas fa-map-marker-alt"></i> Alamat Saya</a>
+  </footer>
+
+  <!-- Tambahan untuk elemen total harga checkout -->
+  <div style="display:none;"><span id="checkout-total">Rp0</span></div>
+
+
+
+
+
+
+  <!-- Script -->
+  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+  <script src="js/script.js"></script>
+</body>
+</html>
