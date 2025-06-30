@@ -2566,3 +2566,120 @@ input[type="radio"]:disabled {
   resize: vertical;
   font-size: 1rem;
 }
+
+.btn-bayar-pesanan,
+.btn-batal-pesanan {
+  margin-top: 8px;
+  padding: 6px 12px;
+  border: none;
+  border-radius: 6px;
+  font-weight: bold;
+  cursor: pointer;
+}
+
+.btn-bayar-pesanan {
+  background-color: #4caf50;
+  color: white;
+}
+
+.btn-batal-pesanan {
+  background-color: #f44336;
+  color: white;
+}
+
+.riwayat-status {
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  font-weight: bold;
+  display: inline-block;
+  text-transform: uppercase;
+}
+
+/* Status Menunggu Pembayaran */
+.status-menunggu {
+  background-color: #fff3cd;
+  color: #856404;
+  border: 1px solid #ffeeba;
+}
+
+/* Status Dibatalkan */
+.status-batal {
+  background-color: #f8d7da;
+  color: #721c24;
+  border: 1px solid #f5c6cb;
+}
+
+.btn-disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  background-color: #ccc !important;
+  color: #666 !important;
+}
+
+.riwayat-metode {
+  font-size: 0.95rem;
+  color: #444;
+  margin: 2px 0 6px 0;
+}
+
+.status-text.status-selesai {
+  color: green;
+  font-weight: bold;
+}
+.status-text.status-proses {
+  color: orange;
+  font-weight: bold;
+}
+.status-text.status-batal {
+  color: red;
+  font-weight: bold;
+}
+.status-text.status-menunggu {
+  color: #999;
+  font-weight: bold;
+}
+
+/* Container Upload */
+.upload-transfer-wrapper {
+  background: #fff;
+  border: 1px solid #ddd;
+  padding: 1rem;
+  border-radius: 12px;
+  margin-top: 1rem;
+  text-align: center;
+}
+
+.upload-transfer-wrapper h4 {
+  margin-bottom: 0.75rem;
+  font-size: 1rem;
+  color: #333;
+}
+
+/* Input file bukti transfer */
+#bukti-transfer {
+  display: block;
+  margin: 0.5rem auto 1rem;
+  padding: 0.5rem;
+  border-radius: 8px;
+  border: 1px solid #ccc;
+  font-size: 0.9rem;
+}
+
+/* Tombol kirim ke admin */
+.btn-kirim-bukti {
+  display: inline-block;
+  background: #25d366;
+  color: white;
+  padding: 0.6rem 1.2rem;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: bold;
+  font-size: 0.95rem;
+  transition: background 0.3s ease;
+}
+
+.btn-kirim-bukti:hover {
+  background: #1ebe5b;
+}
