@@ -4,37 +4,38 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>VLCrave Express</title>
-  <link rel="icon" type="image/png" href="./img/icon.png">
+  <link rel="icon" type="image/png" href="./img/icon.png" />
   <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" rel="stylesheet" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
   <link href="css/style.css" rel="stylesheet" />
 </head>
 <body class="popup-active">
-<div id="popup-overlay"></div>
-<div id="popup-greeting">
-  <img id="popup-img" src="" alt="Status Layanan" />
-  <div id="popup-text"></div>
-  <button id="close-popup">Tutup</button>
-</div>
 
+  <!-- Popup -->
+  <div id="popup-overlay"></div>
+  <div id="popup-greeting">
+    <img id="popup-img" src="" alt="Status Layanan" />
+    <div id="popup-text"></div>
+    <button id="close-popup">Tutup</button>
+  </div>
+
+  <!-- Header -->
   <header class="produk-header" style="display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 12px;">
-  <!-- Kolom Pencarian Lebih Lebar -->
-  <input
-    id="search-input"
-    type="text"
-    placeholder="Cari produk atau toko..."
-    oninput="filterProduk()"
-    style="flex: 1 1 auto; min-width: 0; padding: 10px 14px; font-size: 14px; border-radius: 8px; border: 1px solid #ccc;"
-  />
+    <input
+      id="search-input"
+      type="text"
+      placeholder="Cari produk atau toko..."
+      oninput="filterProduk()"
+      style="flex: 1 1 auto; min-width: 0; padding: 10px 14px; font-size: 14px; border-radius: 8px; border: 1px solid #ccc;"
+    />
+    <a onclick="loadContent('checkout')" style="position: relative; display: inline-flex; align-items: center; justify-content: center; width: 42px; height: 42px; background: #eee; border-radius: 50%;">
+      <i class="fas fa-shopping-cart footer-cart-icon" style="font-size: 18px; color: #333;"></i>
+      <span class="cart-badge">0</span>
+    </a>
+  </header>
 
-  <!-- Tombol Cart -->
-  <a onclick="loadContent('checkout')" style="position: relative; display: inline-flex; align-items: center; justify-content: center; width: 42px; height: 42px; background: #eee; border-radius: 50%;">
-    <i class="fas fa-shopping-cart footer-cart-icon" style="font-size: 18px; color: #333;"></i>
-    <span class="cart-badge">0</span>
-  </a>
-</header>
-  <!-- Konten Utama -->
-  <div id="page-container"></div>
+  <!-- Konten Dinamis -->
+  <main id="page-container"></main>
 
   <!-- Form Tambah Alamat -->
   <div id="form-alamat" style="display: none; padding: 1rem;">
@@ -47,19 +48,83 @@
     </form>
   </div>
 
-  <!-- Footer Navigasi -->
-  <footer class="footer-bottom-nav">
-    <a onclick="loadContent('productlist')"><i class="fas fa-home"></i> Beranda</a>
-    <a onclick="loadContent('riwayat')"><i class="fas fa-clock"></i> Riwayat</a>
-    <a onclick="loadContent('alamat')"><i class="fas fa-map-marker-alt"></i> Alamat Saya</a>
-  </footer>
+  <!-- Footer Dinamis -->
+  <footer class="footer-bottom-nav" id="footer-nav"></footer>
 
-  <!-- Hidden Total Checkout -->
+  <!-- Hidden -->
   <div style="display:none;"><span id="checkout-total">Rp0</span></div>
 
-  <!-- Script -->
+  <!-- Firebase SDK -->
+  <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-firestore-compat.js"></script>
+
+  <!-- Leaflet -->
   <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+
+  <!-- Script Utama -->
   <script src="js/script.js"></script>
-  <script src="js/script_global.js"></script
+  <script src="js/alamat.js"></script>
+  <!-- Role & Footer Dinamis -->
+  <script>
+    const firebaseConfig = {
+      apiKey: "AIzaSyAfBzoX9kUwUTWfQYT6QLndd_mP03__8Wo",
+      authDomain: "vlcrave-express.firebaseapp.com",
+      projectId: "vlcrave-express",
+      storageBucket: "vlcrave-express.appspot.com",
+      messagingSenderId: "609330453287",
+      appId: "1:609330453287:web:5280b9ec5c0d435518e702",
+      measurementId: "G-X528QKSC88"
+    };
+    firebase.initializeApp(firebaseConfig);
+
+    firebase.auth().onAuthStateChanged(async user => {
+      if (!user) {
+        window.location.href = "login.html";
+        return;
+      }
+
+      const db = firebase.firestore();
+      const doc = await db.collection("users").doc(user.uid).get();
+      if (!doc.exists) return;
+
+      const role = (doc.data().role || "").toLowerCase();
+      const footer = document.getElementById("footer-nav");
+      if (!footer) return;
+
+      let html = "";
+
+      if (role === "admin") {
+        html = `
+          <a onclick="loadContent('productlist')"><i class="fas fa-home"></i> Beranda</a>
+          <a onclick="loadContent('riwayat')"><i class="fas fa-store"></i> Transaksi</a>
+          <a onclick="loadContent('user')"><i class="fas fa-user"></i> Akun</a>
+          <a onclick="loadContent('admin-user')"><i class="fas fa-tools"></i> Admin</a>
+	  <a onclick="loadContent('driver-dashboard')"><i class="fas fa-motorcycle"></i> Driver</a>
+	  <a onclick="loadContent('seller-dashboard')"><i class="fas fa-store"></i> Toko Saya</a>
+          <a onclick="loadContent('alamat')"><i class="fas fa-location-dot"></i> Alamat</a>
+        `;
+      } else if (role === "seller") {
+        html = `
+          <a onclick="loadContent('seller-dashboard')"><i class="fas fa-store"></i> Toko Saya</a>
+          <a onclick="loadContent('user')"><i class="fas fa-user"></i> Akun</a>
+        `;
+      } else if (role === "driver") {
+        html = `
+          <a onclick="loadContent('driver-dashboard')"><i class="fas fa-motorcycle"></i> Driver</a>
+          <a onclick="loadContent('user')"><i class="fas fa-user"></i> Akun</a>
+        `;
+      } else {
+        html = `
+          <a onclick="loadContent('productlist')"><i class="fas fa-home"></i> Beranda</a>
+          <a onclick="loadContent('checkout')"><i class="fas fa-shopping-cart"></i> Keranjang</a>
+          <a onclick="loadContent('alamat')"><i class="fas fa-location-dot"></i> Alamat</a>
+          <a onclick="loadContent('user')"><i class="fas fa-user"></i> Akun</a>
+        `;
+      }
+
+      footer.innerHTML = html;
+    });
+  </script>
 </body>
 </html>
