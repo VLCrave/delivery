@@ -21,17 +21,11 @@
 
   <!-- Header -->
   <header class="produk-header" style="display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 12px;">
-    <input
-      id="search-input"
-      type="text"
-      placeholder="Cari produk atau toko..."
-      oninput="filterProduk()"
-      style="flex: 1 1 auto; min-width: 0; padding: 10px 14px; font-size: 14px; border-radius: 8px; border: 1px solid #ccc;"
-    />
-    <a onclick="loadContent('checkout')" style="position: relative; display: inline-flex; align-items: center; justify-content: center; width: 42px; height: 42px; background: #eee; border-radius: 50%;">
-      <i class="fas fa-shopping-cart footer-cart-icon" style="font-size: 18px; color: #333;"></i>
-      <span class="cart-badge">0</span>
-    </a>
+    <input id="search-input" type="text" placeholder="Cari produk atau toko..." oninput="filterProduk()" style="flex: 1 1 auto; min-width: 0; padding: 10px 14px; font-size: 14px; border-radius: 8px; border: 1px solid #ccc;" />
+<a onclick="loadContent('daftar-chat-user')" style="position: relative; display: inline-flex; align-items: center; justify-content: center; width: 42px; height: 42px; background: #eee; border-radius: 50%;">
+  <i class="fa-solid fa-headset" style="font-size: 18px; color: #333;"></i>
+  <span class="cart-badge" id="badge-chat-unread">0</span>
+</a>
   </header>
 
   <!-- Konten Dinamis -->
@@ -43,7 +37,7 @@
       <input type="text" id="nama" placeholder="Nama Lengkap" required />
       <input type="text" id="wa" placeholder="Nomor WhatsApp" required />
       <textarea id="alamat" placeholder="Alamat Lengkap" required></textarea>
-      <textarea id="catatan" placeholder="Catatan (Opsional)"></textarea>
+      <textarea id="catatan" placeholder="Detail"></textarea>
       <button type="submit">Simpan Alamat</button>
     </form>
   </div>
@@ -65,6 +59,7 @@
   <!-- Script Utama -->
   <script src="js/script.js"></script>
   <script src="js/alamat.js"></script>
+
   <!-- Role & Footer Dinamis -->
   <script>
     const firebaseConfig = {
@@ -94,34 +89,40 @@
 
       let html = "";
 
-      if (role === "admin") {
-        html = `
-          <a onclick="loadContent('productlist')"><i class="fas fa-home"></i> Beranda</a>
-          <a onclick="loadContent('riwayat')"><i class="fas fa-store"></i> Transaksi</a>
-          <a onclick="loadContent('user')"><i class="fas fa-user"></i> Akun</a>
-          <a onclick="loadContent('admin-user')"><i class="fas fa-tools"></i> Admin</a>
-	  <a onclick="loadContent('driver-dashboard')"><i class="fas fa-motorcycle"></i> Driver</a>
-	  <a onclick="loadContent('seller-dashboard')"><i class="fas fa-store"></i> Toko Saya</a>
-          <a onclick="loadContent('alamat')"><i class="fas fa-location-dot"></i> Alamat</a>
-        `;
-      } else if (role === "seller") {
-        html = `
-          <a onclick="loadContent('seller-dashboard')"><i class="fas fa-store"></i> Toko Saya</a>
-          <a onclick="loadContent('user')"><i class="fas fa-user"></i> Akun</a>
-        `;
-      } else if (role === "driver") {
-        html = `
-          <a onclick="loadContent('driver-dashboard')"><i class="fas fa-motorcycle"></i> Driver</a>
-          <a onclick="loadContent('user')"><i class="fas fa-user"></i> Akun</a>
-        `;
-      } else {
-        html = `
-          <a onclick="loadContent('productlist')"><i class="fas fa-home"></i> Beranda</a>
-          <a onclick="loadContent('checkout')"><i class="fas fa-shopping-cart"></i> Keranjang</a>
-          <a onclick="loadContent('alamat')"><i class="fas fa-location-dot"></i> Alamat</a>
-          <a onclick="loadContent('user')"><i class="fas fa-user"></i> Akun</a>
-        `;
-      }
+if (role === "admin") {
+  html = `
+    <a onclick="loadContent('productlist')"><i class="fas fa-home"></i><span>Beranda</span></a>
+    <a onclick="loadContent('riwayat')"><i class="fas fa-receipt"></i><span>Transaksi</span></a>
+    <a onclick="loadContent('admin-user')"><i class="fas fa-tools"></i><span>Admin</span></a>
+    <a onclick="loadContent('driver-dashboard')"><i class="fas fa-motorcycle"></i><span>Driver</span></a>
+    <a onclick="loadContent('seller-dashboard')"><i class="fas fa-store"></i><span>Toko</span></a>
+    <a onclick="loadContent('alamat')"><i class="fas fa-location-dot"></i><span>Alamat</span></a>
+    <a onclick="loadContent('user')"><i class="fas fa-user"></i><span>Akun</span></a>
+  `;
+} else if (role === "seller") {
+  html = `
+    <a onclick="loadContent('seller-dashboard')"><i class="fas fa-store"></i><span>Toko Saya</span></a>
+    <a onclick="loadContent('alamat')"><i class="fas fa-location-dot"></i><span>Alamat</span></a>
+    <a onclick="loadContent('user')"><i class="fas fa-user"></i><span>Akun</span></a>
+  `;
+} else if (role === "driver") {
+  html = `
+    <a onclick="loadContent('driver-dashboard')"><i class="fas fa-motorcycle"></i><span>Driver</span></a>
+    <a onclick="loadContent('user')"><i class="fas fa-user"></i><span>Akun</span></a>
+  `;
+} else {
+  html = `
+    <a onclick="loadContent('productlist')"><i class="fas fa-home"></i><span>Beranda</span></a>
+    <a onclick="loadContent('checkout')" class="footer-cart-icon">
+      <i class="fas fa-shopping-cart"></i>
+      <span>Keranjang</span>
+      <span id="cart-badge" class="badge-count">0</span>
+    </a>
+    <a onclick="loadContent('alamat')"><i class="fas fa-location-dot"></i><span>Alamat</span></a>
+    <a onclick="loadContent('user')"><i class="fas fa-user"></i><span>Akun</span></a>
+  `;
+}
+
 
       footer.innerHTML = html;
     });
