@@ -210,11 +210,17 @@ if (page === 'checkout') {
       </div>
 
       <!-- Daftar Keranjang -->
-      <div class="keranjang-box">
-        <h3>🛒 Daftar Pesanan</h3>
-        <ul id="cart-items-list"></ul>
-        <div id="total-checkout"></div>
-      </div>
+<div class="keranjang-box">
+  <h3>🛒 Daftar Pesanan</h3>
+  <ul id="cart-items-list"></ul>
+  <div id="total-checkout"></div>
+
+  <!-- Catatan Tambahan -->
+  <div class="catatan-tambahan" style="margin-top: 15px;">
+    <label for="catatan-pesanan"><strong>📝 Catatan Tambahan</strong></label>
+    <textarea id="catatan-pesanan" placeholder="Tulis catatan untuk penjual... (opsional)" rows="3" style="width:100%; padding:10px; border-radius:8px; border:1px solid #ccc; margin-top:5px;"></textarea>
+  </div>
+</div>
 
       <!-- Metode Pengiriman -->
       <div class="pengiriman-wrapper">
@@ -580,7 +586,7 @@ else if (page === "driver-riwayat") {
 
     const snap = await db.collection("riwayat_driver_admin")
       .where("idDriver", "==", driverId)
-      .orderBy("waktu", "desc")  // ✅ Pake waktu karena timestamp tidak ada
+      .orderBy("waktu", "desc")
       .limit(100)
       .get();
 
@@ -599,6 +605,7 @@ else if (page === "driver-riwayat") {
                 <th>Ongkir</th>
                 <th>Fee</th>
                 <th>Total</th>
+                <th>Rating</th>
                 <th>Aksi</th>
               </tr>
             </thead>
@@ -606,14 +613,14 @@ else if (page === "driver-riwayat") {
     `;
 
     if (snap.empty) {
-      html += `<tr><td colspan="7">Belum ada riwayat pesanan.</td></tr>`;
+      html += `<tr><td colspan="8">Belum ada riwayat pesanan.</td></tr>`;
     } else {
       for (const doc of snap.docs) {
         const d = doc.data();
         const waktu = new Date(d.waktu).toLocaleString("id-ID");
         const idPesanan = d.idPesanan || d.orderId || "-";
 
-        // Ambil juga data dari pesanan_driver berdasarkan idPesanan
+        // Ambil data dari pesanan_driver berdasarkan idPesanan
         const driverSnap = await db.collection("pesanan_driver")
           .where("idPesanan", "==", idPesanan)
           .limit(1)
@@ -630,11 +637,27 @@ else if (page === "driver-riwayat") {
           status = dataDriver.status || "-";
         }
 
-        // Hitung fee dan total
+        // Hitung fee dan penghasilan bersih
         const biayaLayanan = Math.round(subtotal * 0.01);
         const biayaOngkir = Math.round(totalOngkir * 0.05);
         const totalFee = biayaLayanan + biayaOngkir;
         const penghasilanBersih = (subtotal + totalOngkir) - totalFee;
+
+        // Ambil rating dari rating_driver
+        let ratingText = "-";
+        try {
+          const ratingSnap = await db.collection("rating_driver")
+            .where("idPesanan", "==", idPesanan)
+            .limit(1)
+            .get();
+
+          if (!ratingSnap.empty) {
+            const rating = ratingSnap.docs[0].data().rating || 0;
+            ratingText = `⭐ ${rating}/5`;
+          }
+        } catch (err) {
+          console.warn(`❌ Gagal ambil rating untuk ${idPesanan}:`, err.message);
+        }
 
         html += `
           <tr>
@@ -644,6 +667,7 @@ else if (page === "driver-riwayat") {
             <td>Rp ${totalOngkir.toLocaleString("id-ID")}</td>
             <td>Rp ${totalFee.toLocaleString("id-ID")}</td>
             <td>Rp ${penghasilanBersih.toLocaleString("id-ID")}</td>
+            <td>${ratingText}</td>
             <td>
               <button onclick="lihatLogPesananDriver('${idPesanan}')" class="btn-riwayat">📄</button>
             </td>
@@ -656,6 +680,7 @@ else if (page === "driver-riwayat") {
     container.innerHTML = html;
   })();
 }
+
 
 
 
@@ -2059,7 +2084,6 @@ else if (page === "seller-dashboard") {
 
   const db = firebase.firestore();
 
-
   try {
     const tokoQuery = await db.collection("toko").where("uid", "==", user.uid).limit(1).get();
     if (tokoQuery.empty) {
@@ -2118,7 +2142,7 @@ else if (page === "seller-dashboard") {
           <div class="aksi-box" style="margin-top:10px;">
             <button onclick="kelolaProduk('${idToko}')" class="btn-mini">🛒 Kelola Produk</button>
             <button onclick="editToko('${idToko}')" class="btn-mini">✏️ Edit Toko</button>
-            <button onclick="loadContent('form-tariksaldo')" class="btn-mini">💸 Tarik Saldo</button>
+            <button onclick="formTarikSaldo('${idToko}', ${toko.saldo || 0})" class="btn-mini">💸 Tarik Saldo</button></center>
           </div>
         </div>
 
@@ -2129,10 +2153,10 @@ else if (page === "seller-dashboard") {
               <tr>
                 <th>ID Pesanan</th>
                 <th>Pembeli</th>
+                <th>Pesanan</th>
                 <th>Status</th>
-                <th>Produk</th>
                 <th>Driver</th>
-                <th>Waktu & Aksi</th>
+                <th>Detail</th>
               </tr>
             </thead>
             <tbody id="pesanan-penjual-list">
@@ -2183,78 +2207,88 @@ else if (page === "seller-dashboard") {
     }
 
     // Pesanan Masuk
-    db.collection("pesanan_penjual")
-      .where("idToko", "==", idToko)
-      .orderBy("createdAt", "desc")
-      .onSnapshot(async (snap) => {
-        const tbody = document.getElementById("pesanan-penjual-list");
-        if (snap.empty) {
-          tbody.innerHTML = `<tr><td colspan="6">Tidak ada pesanan masuk.</td></tr>`;
-          return;
+db.collection("pesanan_penjual")
+  .where("idToko", "==", idToko)
+  .orderBy("createdAt", "desc")
+  .onSnapshot(async (snap) => {
+    const tbody = document.getElementById("pesanan-penjual-list");
+    if (snap.empty) {
+      tbody.innerHTML = `<tr><td colspan="6">Tidak ada pesanan masuk.</td></tr>`;
+      return;
+    }
+
+    let html = "";
+    for (const doc of snap.docs) {
+      const p = doc.data();
+      const idPesanan = p.idPesanan;
+      const metodePengiriman = p.pengiriman || "-";
+
+      let statusDriver = "Menunggu Driver";
+      let driverInfo = `<span class="badge abu">Mencari Driver...</span>`;
+      const sudahDitambahkan = p.rewardDitambahkan || false;
+
+      const driverSnap = await db.collection("pesanan_driver")
+        .where("idPesanan", "==", idPesanan)
+        .limit(1)
+        .get();
+
+      if (!driverSnap.empty) {
+        const driverData = driverSnap.docs[0].data();
+        const driverId = driverData.idDriver;
+        statusDriver = driverData.status || statusDriver;
+
+        if (statusDriver === "Pesanan Diterima" && !sudahDitambahkan) {
+          const total = p.total || 0;
+          const pendapatan = Math.round(total * 0.95);
+
+          await db.collection("toko").doc(idToko).update({
+            saldo: firebase.firestore.FieldValue.increment(pendapatan)
+          });
+
+          await db.collection("pesanan_penjual").doc(doc.id).update({
+            rewardDitambahkan: true
+          });
+
+          console.log(`✅ Saldo toko ditambah Rp${pendapatan} dari pesanan ${idPesanan}`);
         }
 
-        let html = "";
-        for (const doc of snap.docs) {
-          const p = doc.data();
-          const idPesanan = p.idPesanan;
-
-          let statusDriver = "Menunggu Driver";
-          let driverInfo = `<span class="badge abu">Mencari Driver...</span>`;
-          let sudahDitambahkan = p.rewardDitambahkan || false;
-
-          const driverSnap = await db.collection("pesanan_driver").where("idPesanan", "==", idPesanan).limit(1).get();
-          if (!driverSnap.empty) {
-            const driverData = driverSnap.docs[0].data();
-            const driverId = driverData.idDriver;
-            statusDriver = driverData.status || statusDriver;
-
-            if (statusDriver === "Pesanan Diterima" && !sudahDitambahkan) {
-              const total = p.total || 0;
-              const pendapatan = Math.round(total * 0.95);
-
-              await db.collection("toko").doc(idToko).update({
-                saldo: firebase.firestore.FieldValue.increment(pendapatan)
-              });
-
-              await db.collection("pesanan_penjual").doc(doc.id).update({
-                rewardDitambahkan: true
-              });
-
-              console.log(`✅ Saldo toko ditambah Rp${pendapatan} dari pesanan ${idPesanan}`);
-            }
-
-            const driverDoc = await db.collection("driver").doc(driverId).get();
-            if (driverDoc.exists) {
-              const driver = driverDoc.data();
-              const namaDriver = driver.nama || "Driver";
-              const platNomor = driver.nomorPlat || "-";
-              driverInfo = `<b>${namaDriver}</b><br><small>${platNomor}</small>`;
-            }
-          }
-
-          html += `
-            <tr>
-              <td>${idPesanan}</td>
-              <td>${p.namaPembeli}<br><small>${p.noHpPembeli}</small></td>
-              <td>${statusDriver}</td>
-              <td>${p.produk.map(i => `${i.nama} x${i.jumlah}`).join("<br>")}</td>
-              <td>${driverInfo}</td>
-              <td>
-                ${new Date(p.waktuPesan).toLocaleTimeString("id-ID", { hour: '2-digit', minute: '2-digit' })}<br>
-                <button onclick="lihatLogPesananSeller('${idPesanan}')" class="btn-mini">📄</button>
-              </td>
-            </tr>
-          `;
+        const driverDoc = await db.collection("driver").doc(driverId).get();
+        if (driverDoc.exists) {
+          const driver = driverDoc.data();
+          const namaDriver = driver.nama || "Driver";
+          const platNomor = driver.nomorPlat || "-";
+          driverInfo = `<b>${namaDriver}</b><br><small>${platNomor}</small>`;
         }
+      }
 
-        tbody.innerHTML = html;
-      });
+      // Ambil jam:menit dari createdAt
+      const waktu = p.createdAt?.toDate();
+      const jamMenit = waktu
+        ? waktu.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" })
+        : "-";
+
+      html += `
+        <tr>
+          <td>${idPesanan}<br><small>${jamMenit}</small></td>
+          <td>${p.namaPembeli}<br><small>${p.noHpPembeli}</small></td>
+          <td>${metodePengiriman}</td>
+          <td>${statusDriver}</td>
+          <td>${driverInfo}</td>
+          <td><button onclick="lihatLogPesananSeller('${idPesanan}')" class="btn-mini">📄</button></td>
+        </tr>
+      `;
+    }
+
+    tbody.innerHTML = html;
+  });
+
 
    } catch (e) {
     console.error("❌ Gagal memuat dashboard seller:", e);
     container.innerHTML = `<p style="color:red;">❌ Terjadi kesalahan saat memuat dashboard seller.</p>`;
   }
 }
+
 
 
 
@@ -2778,25 +2812,27 @@ async function kirimRating(idPesanan, idDriver, idResto, namaUser) {
     return alert("❌ Harap beri rating untuk driver dan makanan.");
   }
 
+  const waktu = Date.now();
+
   try {
-    // Kirim ke log_driver
-    await db.collection("log_driver").add({
+    // Simpan ke rating_driver
+    await db.collection("rating_driver").add({
       idDriver,
       idPesanan,
       namaUser,
       rating: ratingDriver,
       komentar: ulasanDriver,
-      waktu: Date.now()
+      waktu
     });
 
-    // Kirim ke log_resto
-    await db.collection("log_resto").add({
+    // Simpan ke rating_seller
+    await db.collection("rating_seller").add({
       idResto,
       idPesanan,
       namaUser,
       rating: ratingResto,
       komentar: ulasanResto,
-      waktu: Date.now()
+      waktu
     });
 
     // Tandai sebagai sudah diberi rating
@@ -2808,10 +2844,11 @@ async function kirimRating(idPesanan, idDriver, idResto, namaUser) {
     tutupPopup();
     renderRiwayat(); // refresh list
   } catch (e) {
-    console.error("Gagal kirim rating:", e);
+    console.error("❌ Gagal mengirim rating:", e);
     alert("❌ Gagal mengirim rating.");
   }
 }
+
 
 
 
@@ -2880,14 +2917,13 @@ async function lihatLogPesananDriver(idPesanan) {
     // Ambil totalOngkir dari pesanan > doc(idPesanan)
     const pesananDoc = await db.collection("pesanan").doc(idPesanan).get();
     let totalOngkir = 0;
-
     if (pesananDoc.exists) {
       const pesananData = pesananDoc.data();
       totalOngkir = pesananData.totalOngkir || 0;
     }
 
     // Hitung Fee Driver 5% dan Penghasilan Bersih
-    const feeDriver = totalOngkir * 0.05;
+    const feeDriver = Math.round(totalOngkir * 0.05);
     const penghasilanBersih = totalOngkir - feeDriver;
 
     // Format rupiah
@@ -2897,9 +2933,33 @@ async function lihatLogPesananDriver(idPesanan) {
     const logHTML = stepsLog.map((step, i) => `
       <li>
         <span class="step-index">${i + 1}.</span>
-        <span class="step-text">${step}</span>
+        <span class="step-text">${step.label || step}</span>
       </li>
     `).join("");
+
+    // Ambil rating driver
+    let ratingHTML = "<p>Belum ada rating dari customer.</p>";
+    try {
+      const ratingSnap = await db.collection("rating_driver")
+        .where("idPesanan", "==", idPesanan)
+        .limit(1)
+        .get();
+
+      if (!ratingSnap.empty) {
+        const r = ratingSnap.docs[0].data();
+        const bintang = "⭐".repeat(r.rating || 0);
+        ratingHTML = `
+          <div class="rating-customer" style="margin-top: 20px; padding: 10px; border: 1px solid #ddd; border-radius: 8px;">
+            <h3>⭐ Rating dari Customer:</h3>
+            <p><strong>Rating:</strong> ${bintang} (${r.rating}/5)</p>
+            <p><strong>Komentar:</strong> "${r.komentar || "-"}"</p>
+            <p><strong>Dari:</strong> ${r.namaUser || "-"}</p>
+          </div>
+        `;
+      }
+    } catch (e) {
+      console.warn("❌ Gagal mengambil rating driver:", e.message);
+    }
 
     container.innerHTML = `
       <div class="log-pesanan-container">
@@ -2916,6 +2976,8 @@ async function lihatLogPesananDriver(idPesanan) {
 
         <h3>📝 Steps Log:</h3>
         <ul class="steps-log-list">${logHTML}</ul>
+
+        ${ratingHTML}
 
         <div class="btn-group" style="margin-top: 20px;">
           <button onclick="loadContent('driver-riwayat')" class="btn btn-secondary">⬅️ Kembali</button>
@@ -2936,47 +2998,95 @@ async function lihatLogPesananSeller(idPesanan) {
   const db = firebase.firestore();
 
   try {
-    // Ambil data driver dari pesanan_driver
+    // Ambil data driver
     const driverSnap = await db.collection("pesanan_driver")
       .where("idPesanan", "==", idPesanan)
       .limit(1)
       .get();
 
-    if (driverSnap.empty) {
-      container.innerHTML = `<p>❌ Tidak ditemukan log untuk pesanan ini.</p>`;
-      return;
+    let idDriver = "-";
+    let status = "-";
+    let stepsLog = [];
+
+    if (!driverSnap.empty) {
+      const driverData = driverSnap.docs[0].data();
+      idDriver = driverData.idDriver || "-";
+      status = driverData.status || "-";
+      stepsLog = driverData.stepsLog || [];
     }
 
-    const driverData = driverSnap.docs[0].data();
-    const idDriver = driverData.idDriver || "-";
-    const status = driverData.status || "-";
-    const stepsLog = driverData.stepsLog || [];
-
-    // Ambil subtotalProduk dari koleksi pesanan, doc idPesanan
+    // Ambil subtotal dari pesanan
     const pesananDoc = await db.collection("pesanan").doc(idPesanan).get();
-
     let subtotalProduk = 0;
+
     if (pesananDoc.exists) {
-      const pesananData = pesananDoc.data();
-      subtotalProduk = pesananData.subtotalProduk || 0;
+      subtotalProduk = pesananDoc.data().subtotalProduk || 0;
     }
 
-    // Hitung fee dan penghasilan bersih
-    const feeToko = subtotalProduk * 0.05;
+    // Ambil pesanan + catatan + produk dari pesanan_penjual
+    const pesananPenjualSnap = await db.collection("pesanan_penjual")
+      .where("idPesanan", "==", idPesanan)
+      .limit(1)
+      .get();
+
+    let daftarPesananHTML = `<p>Tidak ada data pesanan.</p>`;
+    let catatanPembeli = "-";
+
+    if (!pesananPenjualSnap.empty) {
+      const pesananPenjual = pesananPenjualSnap.docs[0].data();
+      const produkList = pesananPenjual.produk || [];
+      catatanPembeli = pesananPenjual.catatan || "-";
+
+      if (produkList.length > 0) {
+        daftarPesananHTML = "<ul>";
+        produkList.forEach((item, i) => {
+          const nama = item.nama || "-";
+          const qty = item.qty || 1;
+          const total = item.total || 0;
+          const addOn = item.addOn ? `<br><small>Add-on: ${item.addOn}</small>` : "";
+
+          daftarPesananHTML += `
+            <li>
+              <b>${i + 1}. ${nama}</b> x${qty} - Rp${total.toLocaleString("id-ID")}
+              ${addOn}
+            </li>
+          `;
+        });
+        daftarPesananHTML += "</ul>";
+      }
+    }
+
+    // Ambil review dari review_seller
+    const reviewSnap = await db.collection("review_seller")
+      .where("idPesanan", "==", idPesanan)
+      .limit(1)
+      .get();
+
+    let ratingText = "Belum ada";
+    let komentarText = "-";
+
+    if (!reviewSnap.empty) {
+      const review = reviewSnap.docs[0].data();
+      ratingText = `${review.rating || 0} ⭐`;
+      komentarText = review.komentar || "-";
+    }
+
+    // Hitung fee dan penghasilan
+    const feeToko = Math.round(subtotalProduk * 0.05);
     const penghasilanBersih = subtotalProduk - feeToko;
 
     // Format rupiah
-    function formatRupiah(angka) {
-      return "Rp " + angka.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
-    }
+    const formatRupiah = (angka) =>
+      "Rp " + angka.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
 
-    let logHTML = stepsLog.map((step, i) => `
+    const logHTML = stepsLog.map((step, i) => `
       <li>
-        <span class="step-index">${i + 1}.</span> 
+        <span class="step-index">${i + 1}.</span>
         <span class="step-text">${step}</span>
       </li>
     `).join("");
 
+    // FINAL OUTPUT
     container.innerHTML = `
       <div class="log-pesanan-container">
         <h2>📄 Log Pesanan</h2>
@@ -2984,16 +3094,30 @@ async function lihatLogPesananSeller(idPesanan) {
         <p><strong>ID Driver:</strong> ${idDriver}</p>
         <p><strong>Status:</strong> ${status}</p>
 
-        <div class="perhitungan-keuangan" style="margin-top:20px;">
-          <p><strong>Subtotal Pesanan:</strong> ${formatRupiah(subtotalProduk)}</p>
-          <p><strong>Fee 5%:</strong> ${formatRupiah(feeToko)}</p>
+        <div style="margin: 20px 0;">
+          <h3>📦 Daftar Pesanan:</h3>
+          ${daftarPesananHTML}
+          <p><strong>Catatan Pembeli:</strong> ${catatanPembeli}</p>
+        </div>
+
+        <div class="perhitungan-keuangan">
+          <p><strong>Subtotal Produk:</strong> ${formatRupiah(subtotalProduk)}</p>
+          <p><strong>Fee (5%):</strong> ${formatRupiah(feeToko)}</p>
           <p><strong>Penghasilan Bersih:</strong> ${formatRupiah(penghasilanBersih)}</p>
         </div>
 
-        <h3>📝 Steps Log:</h3>
-        <ul class="steps-log-list">${logHTML}</ul>
+        <div style="margin-top: 20px;">
+          <h3>⭐ Review & Komentar</h3>
+          <p><strong>Rating:</strong> ${ratingText}</p>
+          <p><strong>Komentar:</strong> ${komentarText}</p>
+        </div>
 
-        <div class="btn-group">
+        <div style="margin-top: 20px;">
+          <h3>📝 Steps Log:</h3>
+          <ul class="steps-log-list">${logHTML}</ul>
+        </div>
+
+        <div class="btn-group" style="margin-top: 20px;">
           <button onclick="kembaliKeDashboardSeller()" class="btn btn-secondary">⬅️ Kembali</button>
           <button onclick="laporkanPesananSeller('${idPesanan}')" class="btn btn-danger">🚨 Laporkan masalah</button>
         </div>
@@ -3009,8 +3133,9 @@ async function lihatLogPesananSeller(idPesanan) {
 
 
 
+
 function kembaliKeDashboardSeller() {
-  loadPage("seller-dashboard");
+  loadContent("seller-dashboard");
 }
 
 async function laporkanPesananSeller(idPesanan) {
@@ -5465,6 +5590,7 @@ function handleKlikCheckout() {
 
 
 
+
 async function renderDetailRiwayat(item) {
   const container = document.getElementById("riwayat-detail-container");
   if (!container) return;
@@ -5952,17 +6078,17 @@ async function prosesCheckout() {
 
   const metodePembayaran = document.getElementById("metode-pembayaran")?.value || "saldo";
 
-  // Alamat
+  // Ambil alamat
   const alamatDoc = await db.collection("alamat").doc(uid).get();
   if (!alamatDoc.exists) return alert("❌ Alamat belum tersedia.");
   const { nama, noHp, alamat, lokasi } = alamatDoc.data() || {};
 
-  // Keranjang
+  // Ambil keranjang
   const keranjangDoc = await db.collection("keranjang").doc(uid).get();
   const produk = keranjangDoc.exists ? keranjangDoc.data().items || [] : [];
   if (produk.length === 0) return alert("❌ Keranjang kosong.");
 
-  // Hitung
+  // Hitung total estimasi dan harga
   const estimasiTotalMenit = produk.reduce((t, i) => t + (parseInt(i.estimasi) || 10), 0);
   const subtotalProduk = produk.reduce((t, i) => t + (i.harga * i.jumlah), 0);
   const totalOngkir = [...new Set(produk.map(p => p.idToko))].reduce((sum, idToko) => {
@@ -5970,18 +6096,30 @@ async function prosesCheckout() {
     return sum + (item?.ongkir || 0);
   }, 0);
 
-  // Voucher
+  // Validasi Voucher
   let kodeVoucher = null;
   let potongan = 0;
   const voucher = window.voucherTerpakai;
 
   if (voucher?.kode && voucher.potongan) {
+    if (voucher.digunakanOleh?.includes(uid)) {
+      return alert("❌ Voucher ini sudah pernah digunakan.");
+    }
+
+    const nowTime = new Date();
+    if (voucher.expired?.toDate?.() && nowTime > voucher.expired.toDate()) {
+      return alert("❌ Voucher sudah expired.");
+    }
+
+    if (voucher.kuota <= 0) {
+      return alert("❌ Kuota voucher sudah habis.");
+    }
+
     if (subtotalProduk < voucher.minimal) {
       return alert(`❌ Minimal order Rp${voucher.minimal.toLocaleString()} untuk menggunakan voucher ini.`);
     }
 
     kodeVoucher = voucher.kode;
-
     if (voucher.tipe === "persen") {
       potongan = Math.round(subtotalProduk * (parseFloat(voucher.potongan) / 100));
     } else {
@@ -5998,9 +6136,7 @@ async function prosesCheckout() {
   const metodePengiriman = document.querySelector('input[name="pengiriman"]:checked')?.value || "standard";
   const catatanPesanan = document.getElementById("catatan-pesanan")?.value.trim() || "-";
 
-  let wa = noHp || "";
-  if (wa.startsWith("08")) wa = "628" + wa.slice(2);
-
+  // Validasi saldo jika metode = saldo
   if (metodePembayaran === "saldo") {
     const userDoc = await db.collection("users").doc(uid).get();
     const saldo = userDoc.exists ? userDoc.data().saldo || 0 : 0;
@@ -6009,6 +6145,7 @@ async function prosesCheckout() {
     }
   }
 
+  // Persiapan ID pesanan
   const now = Date.now();
   const today = new Date();
   const random = Math.floor(Math.random() * 100000);
@@ -6017,6 +6154,7 @@ async function prosesCheckout() {
   const waktuPesanStr = new Date(now).toLocaleTimeString("id-ID", { hour: '2-digit', minute: '2-digit' });
   const stepsLog = [`${waktuPesanStr} Pesanan dibuat (Pending)`];
 
+  // Hitung Jarak
   const geoPointToLatLng = geo => {
     if (!geo) return null;
     return geo.latitude !== undefined ? { lat: geo.latitude, lng: geo.longitude } : geo;
@@ -6034,7 +6172,7 @@ async function prosesCheckout() {
     return Math.round(R * 2 * Math.atan2(Math.sqrt(x), Math.sqrt(1 - x)) * 10) / 10;
   };
 
-  // Lokasi toko utama
+  // Ambil lokasi toko utama
   const idTokoUtama = produk[0].idToko;
   const tokoDoc = await db.collection("toko").doc(idTokoUtama).get();
   const lokasiToko = tokoDoc.exists ? tokoDoc.data().koordinat : null;
@@ -6043,7 +6181,7 @@ async function prosesCheckout() {
   const jarakTokoKeUser = hitungJarakKM(lokasiToko, lokasi);
   if (jarakTokoKeUser > 20) return alert("❌ Layanan tidak tersedia di lokasi Anda.");
 
-  // Cari driver
+  // Cari Driver
   const driverSnap = await db.collection("driver").get();
   let nearestDriver = null;
   let minJarak = Infinity;
@@ -6088,13 +6226,16 @@ async function prosesCheckout() {
 
   if (!nearestDriver) return alert("❌ Tidak ada driver aktif & cocok saat ini.");
 
+  // Simpan ke pesanan
+  const wa = noHp.startsWith("08") ? "628" + noHp.slice(2) : noHp;
+
   const dataPesanan = {
     id: idPesanan,
     userId: uid,
     nama,
     noHp: wa,
     alamat,
-    lokasi: lokasi || null,
+    lokasi,
     produk,
     catatan: catatanPesanan,
     metode: metodePembayaran,
@@ -6117,6 +6258,7 @@ async function prosesCheckout() {
   await db.collection("pesanan").doc(idPesanan).set(dataPesanan);
   await db.collection("keranjang").doc(uid).delete();
 
+  // Simpan ke pesanan_driver
   await db.collection("pesanan_driver").doc(idPesanan).set({
     idDriver: nearestDriver.id,
     idPesanan,
@@ -6132,10 +6274,26 @@ async function prosesCheckout() {
     total: totalBayar,
     totalOngkir,
     biayaLayanan,
+    catatan: catatanPesanan,
     createdAt: firebase.firestore.FieldValue.serverTimestamp()
   });
 
-  // Update voucher
+  // Simpan ke pesanan_penjual per toko
+  for (const item of produk) {
+    await db.collection("pesanan_penjual").add({
+      idPesanan,
+      idToko: item.idToko,
+      metode: metodePembayaran,
+      namaPembeli: nama,
+      noHpPembeli: wa,
+      pengiriman: metodePengiriman,
+      ongkir: item.ongkir || 0,
+      catatan: catatanPesanan,
+      createdAt: firebase.firestore.FieldValue.serverTimestamp()
+    });
+  }
+
+  // Update Voucher
   if (voucher?.id) {
     await db.collection("voucher").doc(voucher.id).update({
       kuota: firebase.firestore.FieldValue.increment(-1),
@@ -6143,14 +6301,14 @@ async function prosesCheckout() {
     });
   }
 
-  // Reset voucher UI
+  // Reset UI Voucher
   window.voucherTerpakai = null;
   const voucherInput = document.getElementById("voucher");
   if (voucherInput) voucherInput.value = "";
   const voucherFeedback = document.getElementById("voucher-feedback");
   if (voucherFeedback) voucherFeedback.innerText = "";
 
-  // Update Rincian UI
+  // Update UI Pembayaran
   if (document.getElementById("rincian-subtotal")) {
     document.getElementById("rincian-subtotal").innerText = `Rp ${subtotalProduk.toLocaleString()}`;
     document.getElementById("rincian-ongkir").innerText = `Rp ${totalOngkir.toLocaleString()}`;
@@ -6168,6 +6326,7 @@ async function prosesCheckout() {
   if (document.getElementById("riwayat-list")) renderRiwayat();
   loadContent(metodePembayaran);
 }
+
 
 
 
@@ -6609,7 +6768,19 @@ async function renderProductList() {
       };
     });
 
-    // Gabungkan data produk dengan info toko dan hitung jarak
+    // Hitung jarak antar koordinat
+    function hitungJarak(lat1, lon1, lat2, lon2) {
+      const R = 6371;
+      const dLat = (lat2 - lat1) * Math.PI / 180;
+      const dLng = (lon2 - lon1) * Math.PI / 180;
+      const a =
+        Math.sin(dLat / 2) ** 2 +
+        Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+        Math.sin(dLng / 2) ** 2;
+      return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    }
+
+    // Gabungkan produk dengan info toko + hitung jarak
     const produkGabung = produkList.map(produk => {
       const tokoInfo = tokoMap[produk.idToko] || {
         namaToko: 'Unknown Toko',
@@ -6631,24 +6802,30 @@ async function renderProductList() {
         buka: tokoInfo.buka,
         tutup: tokoInfo.tutup,
         isOpen: tokoInfo.isOpen,
-        jarak: jarakKm ? `${jarakKm.toFixed(2)} km` : 'N/A'
+        jarak: jarakKm ? `${jarakKm.toFixed(2)} km` : 'N/A',
+        jarakNumber: jarakKm
       };
     });
 
-    // Urutkan produk berdasarkan rating tertinggi
-    const produkUrut = [...produkGabung].sort((a, b) => (parseFloat(b.rating) || 0) - (parseFloat(a.rating) || 0));
+    const produkUrut = [...produkGabung].sort((a, b) => (a.jarakNumber || Infinity) - (b.jarakNumber || Infinity));
 
-    // Render produk dengan tombol disabled jika toko tutup atau stok habis
+
     let html = '';
-
     produkUrut.forEach((produk, index) => {
       const tokoAktif = produk.isOpen;
       const stokHabis = (produk.stok || 0) <= 0;
-      const disabledAttr = !tokoAktif || stokHabis ? 'disabled' : '';
+      const layananTidakTersedia = produk.jarakNumber > 20;
+
+      const disabledAttr = (!tokoAktif || stokHabis || layananTidakTersedia) ? 'disabled' : '';
       let btnText = 'Lihat Detail';
 
-      if (!tokoAktif) btnText = 'Toko Tutup';
-      else if (stokHabis) btnText = 'Stok Habis';
+      if (layananTidakTersedia) {
+        btnText = 'Layanan Tidak Tersedia';
+      } else if (!tokoAktif) {
+        btnText = 'Toko Tutup';
+      } else if (stokHabis) {
+        btnText = 'Stok Habis';
+      }
 
       const tokoSafe = (produk.tokoNama || '').replace(/'/g, "\\'");
       const gambarProduk = produk.urlGambar || './img/toko-pict.png';
@@ -6683,12 +6860,24 @@ async function renderProductList() {
 
     produkContainer.innerHTML = html;
 
-    // Pasang event listener hanya untuk tombol yang aktif
+    // Event listener
     document.querySelectorAll('.beli-btn').forEach(button => {
-      if (!button.disabled) {
+      const index = button.getAttribute('data-index');
+      const produk = produkUrut[index];
+
+      if (button.disabled) {
         button.addEventListener('click', () => {
-          const index = button.getAttribute('data-index');
-          tampilkanPopupDetail(produkUrut[index]);
+          if (produk.jarakNumber > 20) {
+            alert("❌ Layanan tidak tersedia untuk lokasi Anda.");
+          } else if (!produk.isOpen) {
+            alert("❌ Toko sedang tutup.");
+          } else if ((produk.stok || 0) <= 0) {
+            alert("❌ Stok produk habis.");
+          }
+        });
+      } else {
+        button.addEventListener('click', () => {
+          tampilkanPopupDetail(produk);
         });
       }
     });
@@ -6698,6 +6887,7 @@ async function renderProductList() {
     produkContainer.innerHTML = `<p style="color:red;">Gagal memuat produk.</p>`;
   }
 }
+
 
 
 async function tampilkanPopupDetail(produk) {
@@ -6785,8 +6975,6 @@ async function tampilkanPopupDetail(produk) {
         </div>
 
         ${addonHtml}
-
-        <textarea placeholder="Catatan untuk penjual (opsional)" style="width: 100%; margin-top: 12px; padding: 8px; border-radius: 6px; border: 1px solid #ccc;"></textarea>
 
         <div class="popup-rating-ulasan" style="margin-top: 16px; border-top: 1px solid #eee; padding-top: 10px;">
           <p><strong>Rating:</strong> ${bintangHTML} ${rataRata.toFixed(1)} (${totalUlasan})</p>
